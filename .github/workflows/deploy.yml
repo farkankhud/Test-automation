@@ -26,9 +26,9 @@ jobs:
 
       - name: Install cf CLI and MultiApps plugin
         run: |
-          wget -q -O cf.tgz "https://packages.cloudfoundry.org/stable?release=linux64-binary&version=v8&source=github"
-          tar -xzf cf.tgz cf8
-          sudo mv cf8 /usr/local/bin/cf
+          wget -q -O "$RUNNER_TEMP/cf.tgz" "https://packages.cloudfoundry.org/stable?release=linux64-binary&version=v8&source=github"
+          tar -xzf "$RUNNER_TEMP/cf.tgz" -C "$RUNNER_TEMP" cf8
+          sudo mv "$RUNNER_TEMP/cf8" /usr/local/bin/cf
           cf version
           cf install-plugin multiapps -f
 
