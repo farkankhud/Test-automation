@@ -5,6 +5,9 @@ on:
     branches: ['**']
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -35,10 +38,54 @@ jobs:
           cf auth "$CF_USER" "$CF_PASSWORD"
           cf target -o "$CF_ORG" -s "$CF_SPACE"
 
+      - name: Install SAP build tools (cds-dk 8, mbt, SAP Fiori generator)
+        if: hashFiles('mta.yaml') != '' || hashFiles('scaffold.json') != ''
+        run: npm i -g @sap/cds-dk@8 mbt yo@5 @sap/generator-fiori
+
+      # Generates project infrastructure and Fiori UIs with the same tools BAS uses.
+      # Idempotent: cds add runs only while mta.yaml is missing; each UI is generated only while its manifest is missing.
+      - name: Scaffold (cds add + SAP Fiori generator, headless)
+        if: hashFiles('scaffold.json') != ''
+        run: |
+          set -e
+          npm install
+          if [ ! -f mta.yaml ]; then
+            FACETS=$(jq -r '(.cdsAdd // ["hana","xsuaa","approuter","mta"]) | join(",")' scaffold.json)
+            echo "cds add $FACETS --for production"
+            cds add "$FACETS" --for production
+            npm install
+          fi
+          for i in $(jq -r '(.apps // []) | keys[]' scaffold.json); do
+            NAME=$(jq -r ".apps[$i].name" scaffold.json)
+            if [ -f "app/$NAME/webapp/manifest.json" ]; then echo "UI $NAME exists, skipping"; continue; fi
+            jq --arg root "$PWD" --argjson i "$i" '.apps[$i] as $a | {
+              version: "0.2",
+              floorplan: "FE_LROP",
+              project: { name: $a.name, targetFolder: ($root + "/app"), namespace: ($a.namespace // ""),
+                         title: ($a.title // $a.name), description: ($a.description // $a.title // $a.name),
+                         ui5Version: ($a.ui5Version // ""), localUI5Version: ($a.ui5Version // ""), sapux: true },
+              service: { servicePath: $a.servicePath,
+                         capService: { projectPath: $root, serviceName: $a.serviceName, serviceCdsPath: ($a.serviceCdsPath // "srv/service") } },
+              entityConfig: { mainEntity: { entityName: $a.mainEntity },
+                              generateFormAnnotations: ($a.generateAnnotations // false),
+                              generateLROPAnnotations: ($a.generateAnnotations // false) },
+              telemetryData: { generationSourceName: "cap-dev-agent", generationSourceVersion: "1" }
+            }' scaffold.json > "/tmp/fiori-gen-$NAME.json"
+            cat "/tmp/fiori-gen-$NAME.json"
+            yo @sap/fiori:headless "/tmp/fiori-gen-$NAME.json" --force --skipInstall
+          done
+          git config user.name "cap-dev-agent[bot]"
+          git config user.email "cap-dev-agent@users.noreply.github.com"
+          git add -A
+          if ! git diff --cached --quiet; then
+            git status --short
+            git commit -m "chore: scaffold via cds add + SAP Fiori generator (pipeline)"
+            git push
+          fi
+
       - name: Build MTA
         if: hashFiles('mta.yaml') != ''
         run: |
-          npm i -g mbt @sap/cds-dk
           npm install
           mbt build -p=cf -t mta_archives --mtar app.mtar
 
