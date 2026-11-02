@@ -9,7 +9,7 @@ build-parameters:
     - builder: custom
       commands:
         - npm install
-        - cds build --production
+        - npx cds build --production
 modules:
   # CAP service + Fiori UI (served statically from /app)
   - name: scrum-5-mapping-table
