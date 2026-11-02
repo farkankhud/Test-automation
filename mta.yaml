@@ -71,3 +71,8 @@ resources:
       config:
         xsappname: scrum-5-mapping-table-${org}-${space}
         tenant-mode: dedicated
+        oauth2-configuration:
+          redirect-uris:
+            - https://~{app-api/app-uri}/**
+    requires:
+      - name: app-api
