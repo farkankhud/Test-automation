@@ -9,14 +9,17 @@
   "dependencies": {
     "@sap/cds": "^8",
     "@cap-js/hana": "^1",
-    "express": "^4"
+    "express": "^4",
+    "@sap/xssec": "^4"
   },
   "devDependencies": {
     "@cap-js/sqlite": "^1",
-    "@sap/cds-dk": "^8"
+    "@sap/cds-dk": "^8",
+    "cds-plugin-ui5": "^0.17.0"
   },
   "scripts": {
-    "start": "cds-serve"
+    "start": "cds-serve",
+    "watch-mappingtable": "cds watch --open scrum5.mappingtable/index.html?sap-ui-xx-viewCache=false --livereload false"
   },
   "cds": {
     "requires": {
@@ -30,7 +33,22 @@
         "[production]": {
           "kind": "hana"
         }
+      },
+      "[production]": {
+        "auth": "xsuaa",
+        "db": {
+          "kind": "hana"
+        }
       }
+    },
+    "sql": {
+      "native_hana_associations": false
     }
-  }
+  },
+  "workspaces": [
+    "app/*"
+  ],
+  "sapux": [
+    "app/mappingtable"
+  ]
 }
