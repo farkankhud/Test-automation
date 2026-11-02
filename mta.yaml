@@ -1,0 +1,17 @@
+_schema-version: "3.1"
+ID: scrum-5-mapping-table
+version: 1.0.0
+description: "SCRUM-5 CAP mapping_table with Fiori Elements UI"
+parameters:
+  enable-parallel-deployments: true
+modules:
+  - name: scrum-5-mapping-table
+    type: nodejs
+    path: .
+    parameters:
+      memory: 256M
+      disk-quota: 512M
+      routes:
+        - route: scrum-5-mapping-table-b551a6dctrial.cfapps.us10-001.hana.ondemand.com
+    build-parameters:
+      ignore: ["node_modules/", "mta_archives/", ".github/", "*.mtar"]
