@@ -8,6 +8,11 @@ on:
 permissions:
   contents: write
 
+# A newer push to the same branch cancels the older, still-running deploy
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -24,6 +29,23 @@ jobs:
         with:
           node-version: 20
 
+      - name: Cache npm downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: npm-${{ runner.os }}-
+
+      - name: Decide whether scaffolding is needed
+        id: need
+        run: |
+          NEED=false
+          if [ -f scaffold.json ]; then
+            [ -f mta.yaml ] || NEED=true
+            for n in $(jq -r '(.apps // [])[].name' scaffold.json); do [ -f "app/$n/webapp/manifest.json" ] || NEED=true; done
+          fi
+          echo "scaffold=$NEED" >> "$GITHUB_OUTPUT"; echo "scaffold needed: $NEED"
+
       - name: Install cf CLI and MultiApps plugin
         run: |
           wget -q -O "$RUNNER_TEMP/cf.tgz" "https://packages.cloudfoundry.org/stable?release=linux64-binary&version=v8&source=github"
@@ -38,17 +60,21 @@ jobs:
           cf auth "$CF_USER" "$CF_PASSWORD"
           cf target -o "$CF_ORG" -s "$CF_SPACE"
 
-      - name: Install SAP build tools (cds-dk 8, mbt, SAP Fiori generator)
-        if: hashFiles('mta.yaml') != '' || hashFiles('scaffold.json') != ''
-        run: npm i -g @sap/cds-dk@8 mbt yo@5 @sap/generator-fiori
+      - name: Install build tools (cds-dk 8, mbt)
+        if: hashFiles('mta.yaml') != '' || steps.need.outputs.scaffold == 'true'
+        run: npm i -g --prefer-offline --no-audit --no-fund @sap/cds-dk@8 mbt
+
+      - name: Install SAP Fiori generator (only when a UI must be generated)
+        if: steps.need.outputs.scaffold == 'true'
+        run: npm i -g --prefer-offline --no-audit --no-fund yo@5 @sap/generator-fiori
 
       # Generates project infrastructure and Fiori UIs with the same tools BAS uses.
       # Idempotent: cds add runs only while mta.yaml is missing; each UI is generated only while its manifest is missing.
       - name: Scaffold (cds add + SAP Fiori generator, headless)
-        if: hashFiles('scaffold.json') != ''
+        if: steps.need.outputs.scaffold == 'true'
         run: |
           set -e
-          npm install
+          npm install --prefer-offline --no-audit --no-fund
           if [ ! -f mta.yaml ]; then
             FACETS=$(jq -r '(.cdsAdd // ["hana","xsuaa","approuter","mta"]) | join(",")' scaffold.json)
             echo "cds add $FACETS --for production"
@@ -86,7 +112,7 @@ jobs:
       - name: Build MTA
         if: hashFiles('mta.yaml') != ''
         run: |
-          npm install
+          npm install --prefer-offline --no-audit --no-fund
           mbt build -p=cf -t mta_archives --mtar app.mtar
 
       - name: Deploy MTA
