@@ -1,0 +1,15 @@
+{
+  "cdsAdd": ["hana", "xsuaa", "approuter", "mta"],
+  "apps": [
+    {
+      "name": "mappingtable",
+      "namespace": "scrum5",
+      "title": "Mapping Table",
+      "description": "Maintain mapping_table entries (create / edit / delete)",
+      "serviceName": "MappingService",
+      "servicePath": "/odata/v4/mapping/",
+      "serviceCdsPath": "srv/service",
+      "mainEntity": "MappingTable"
+    }
+  ]
+}
