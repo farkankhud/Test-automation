@@ -1,0 +1,51 @@
+name: Build and Deploy to BTP CF
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CF_API: ${{ secrets.CF_API }}
+      CF_USER: ${{ secrets.CF_USER }}
+      CF_PASSWORD: ${{ secrets.CF_PASSWORD }}
+      CF_ORG: ${{ secrets.CF_ORG }}
+      CF_SPACE: ${{ secrets.CF_SPACE }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install cf CLI and MultiApps plugin
+        run: |
+          wget -q -O cf.tgz "https://packages.cloudfoundry.org/stable?release=linux64-binary&version=v8&source=github"
+          tar -xzf cf.tgz cf8
+          sudo mv cf8 /usr/local/bin/cf
+          cf version
+          cf install-plugin multiapps -f
+
+      - name: Log in to Cloud Foundry
+        run: |
+          cf api "${CF_API%/}"
+          cf auth "$CF_USER" "$CF_PASSWORD"
+          cf target -o "$CF_ORG" -s "$CF_SPACE"
+
+      - name: Build MTA
+        if: hashFiles('mta.yaml') != ''
+        run: |
+          npm i -g mbt @sap/cds-dk
+          npm install
+          mbt build -p=cf -t mta_archives --mtar app.mtar
+
+      - name: Deploy MTA
+        if: hashFiles('mta.yaml') != ''
+        run: cf deploy mta_archives/app.mtar -f
+
+      - name: Show app URLs
+        if: hashFiles('mta.yaml') != ''
+        run: cf apps
