@@ -10,6 +10,7 @@ build-parameters:
       commands:
         - npm ci
         - npx cds build --production
+        - bash scripts/copy-ui-to-router.sh
 modules:
   - name: scrum-5-mapping-table-srv
     type: nodejs
