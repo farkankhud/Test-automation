@@ -1,0 +1,84 @@
+_schema-version: "3.1"
+ID: scrum-6-validation-app
+version: 1.0.0
+description: "SCRUM-6: CAP validation_table - srv, HDI db-deployer, approuter, XSUAA"
+parameters:
+  enable-parallel-deployments: true
+build-parameters:
+  before-all:
+    - builder: custom
+      commands:
+        - npm install
+        - npx cds build --production
+        - bash scripts/copy-ui-to-router.sh
+modules:
+  - name: scrum-6-validation-app-srv
+    type: nodejs
+    path: gen/srv
+    parameters:
+      instances: 1
+      memory: 256M
+      disk-quota: 1024M
+      buildpack: nodejs_buildpack
+    build-parameters:
+      builder: npm
+    provides:
+      - name: srv-api
+        properties:
+          srv-url: ${default-url}
+    requires:
+      - name: scrum-6-validation-app-db
+      - name: scrum-6-validation-app-auth
+
+  - name: scrum-6-validation-app-db-deployer
+    type: hdb
+    path: gen/db
+    parameters:
+      buildpack: nodejs_buildpack
+      memory: 256M
+    requires:
+      - name: scrum-6-validation-app-db
+
+  - name: scrum-6-validation-app
+    type: approuter.nodejs
+    path: app/router
+    parameters:
+      keep-existing-routes: true
+      disk-quota: 256M
+      memory: 256M
+      routes:
+        - route: scrum-6-validation-app-b551a6dctrial.cfapps.us10-001.hana.ondemand.com
+    requires:
+      - name: srv-api
+        group: destinations
+        properties:
+          name: srv-api
+          url: ~{srv-url}
+          forwardAuthToken: true
+      - name: scrum-6-validation-app-auth
+    provides:
+      - name: app-api
+        properties:
+          app-protocol: https
+          app-uri: scrum-6-validation-app-b551a6dctrial.cfapps.us10-001.hana.ondemand.com
+
+resources:
+  - name: scrum-6-validation-app-db
+    type: com.sap.xs.hdi-container
+    parameters:
+      service: hana
+      service-plan: hdi-shared
+  - name: scrum-6-validation-app-auth
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: xsuaa
+      service-plan: application
+      path: ./xs-security.json
+      config:
+        xsappname: scrum-6-validation-app-${org}-${space}
+        tenant-mode: dedicated
+        oauth2-configuration:
+          redirect-uris:
+            - https://~{app-api/app-uri}/**
+    requires:
+      - name: app-api

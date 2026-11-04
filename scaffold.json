@@ -1,0 +1,15 @@
+{
+  "cdsAdd": ["hana", "xsuaa", "approuter", "mta"],
+  "apps": [
+    {
+      "name": "validationtable",
+      "namespace": "scrum6",
+      "title": "Validation Table",
+      "description": "Maintain validation_table entries (create / edit / delete)",
+      "serviceName": "ValidationService",
+      "servicePath": "/odata/v4/validation/",
+      "serviceCdsPath": "srv/service",
+      "mainEntity": "ValidationTable"
+    }
+  ]
+}
